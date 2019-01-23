@@ -49,5 +49,5 @@ buildScan {
 }
 
 bootJar {
-    mainClassName = 'coin.App'
+    mainClassName = 'coin.CoinController'
 }

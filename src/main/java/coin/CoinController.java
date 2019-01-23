@@ -3,6 +3,11 @@ import java.util.*;
 import java.io.*;
 
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.boot.SpringApplication;
@@ -20,66 +25,71 @@ import org.json.simple.parser.JSONParser;
 @EnableCaching
 public class CoinController {
 
-    private static String[] COINS = { "BTC_KRW", "LTC_KRW", "EOS_KRW", "BCH_KRW", "XRP_KRW" };
-    private static String[] TRADERS = { "bithumb", "coinone", "korbit", "bitfinex" };
+    private static final String[] COIN = { "BTC", "LTC", "EOS", "BCH", "XRP" };
+    private static final String[] TRADER = { "bithumb", "coinone", "korbit", "bitfinex" };
+    private static final String[] CURRENCY_SUFFIX = { "KRW", "JPY", "USD" };
 
-    @RequestMapping(value = "/currency/{currency}", method = RequestMethod.GET)
-    public HashMap<String,Object> currency(String currency){
+    public static void main(String[] args) {
+        SpringApplication.run(CoinController.class, args);
+    }
+
+    @RequestMapping(value = "/currency/" )
+    public @ResponseBody ResponseEntity<HashMap> currency(){
 	HashMap<String, Object> map = new HashMap<>();	
 	map.put("status", "success");
-	map.put("data", getCurrency(currency));
-	return map;
+	map.put("data", getData(""));
+	return new ResponseEntity<>(map, HttpStatus.OK);
+    }
+
+    @RequestMapping(value = "/currency/{curr}" )
+    public @ResponseBody ResponseEntity<HashMap> currency(@PathVariable String curr){
+	HashMap<String, Object> map = new HashMap<>();	
+	map.put("status", "success");
+	map.put("data", getData(curr));
+	return new ResponseEntity<>(map, HttpStatus.OK);
     }
 
     @Cacheable
-    public JSONObject getCurrency(String currency){
+    public JSONObject getData(String currency){
         JSONParser parser = new JSONParser();
 	JSONObject data = new JSONObject();
+
+	if (currency == null) currency = "";
  
         try {
- 
-            Object obj = parser.parse(new FileReader(
-                    "/Users/<username>/price.json"));
+            Object obj = parser.parse(new FileReader("/Users/adol/price.json"));
  
             JSONObject jsonObject = (JSONObject) obj;
  
-	    if (currency.equals("")){
-		String coinName = currency + "_KRW";
-		JSONObject coinInfoObject = (JSONObject) getCoinInfo( (JSONObject) jsonObject.get(coinName));
-		data.put("data", coinInfoObject);
+	    if (!currency.equals("")){
+		String coinWithCurrency = currency + "_" + CURRENCY_SUFFIX[0];
+		JSONObject valueInfoObject = (JSONObject) getCoinInfo((JSONObject) jsonObject.get(coinWithCurrency));
+		data = valueInfoObject;
 	    } else {
-		for (int i = 0; i < COINS.length; i++){
-			// TODO
-			System.out.println(COINS[i]);
+		for (String coin : COIN){
+		    String coinWithCurrency = coin + "_" + CURRENCY_SUFFIX[0];
+		    JSONObject valueInfoObject = (JSONObject) getCoinInfo((JSONObject) jsonObject.get(coinWithCurrency));
+		    data.put(coinWithCurrency, valueInfoObject );
 		}
 	    }
-/*
-            String name = (String) jsonObject.get("Name");
-            String author = (String) jsonObject.get("Author");
-            JSONArray companyList = (JSONArray) jsonObject.get("Company List");
- 
-            System.out.println("Name: " + name);
-            System.out.println("Author: " + author);
-            System.out.println("\nCompany List:");
-            Iterator<String> iterator = companyList.iterator();
-            while (iterator.hasNext()) {
-                System.out.println(iterator.next());
-            }
-*/
 	} catch(Exception e){
 	    e.printStackTrace();
 	}
 	return data;
     }
     public JSONObject getCoinInfo(JSONObject orgObject){
-	JSONObject coinInfoObject = new JSONObject();
-	for (int i = 0; i < TRADERS.length; i++){
+	JSONObject valueInfoObject = new JSONObject();
+	for (String trader : TRADER){
 	    JSONObject traderInfoObject = new JSONObject();
-	    JSONObject orgTraderInfoObject = (JSONObject)orgObject.get(TRADERS[i]);
-	    traderInfoObject.put( "originPair", (String)orgTraderInfoObject.get("originPair") );
-	    traderInfoObject.put( "last_price", (String)orgTraderInfoObject.get("last_price") );
-	    coinInfoObject.put( TRADERS[i], traderInfoObject );
+	    JSONObject orgTraderInfoObject = (JSONObject)orgObject.get(trader);
+	    if (orgTraderInfoObject == null){
+	    	valueInfoObject.put( trader, null);
+	    } else {
+	    	traderInfoObject.put( "originPair", (String)orgTraderInfoObject.get("originPair") );
+	    	traderInfoObject.put( "last", Double.parseDouble((String)orgTraderInfoObject.get("last")) );
+	    	valueInfoObject.put( trader, traderInfoObject );
+	    }
 	}
-	return coinInfoObject;
+	return valueInfoObject;
     }
 }
